@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_risk_report_wizard_user,account.report.risk.client.user,model_account_report_risk_client,account.group_account_user,1,1,1,0
+access_risk_report_wizard_manager,account.report.risk.client.manager,model_account_report_risk_client,account.group_account_manager,1,1,1,1
+access_risk_report_line_user,account.report.risk.client.line.user,model_account_report_risk_client_line,account.group_account_user,1,1,1,0
+access_risk_report_line_manager,account.report.risk.client.line.manager,model_account_report_risk_client_line,account.group_account_manager,1,1,1,1

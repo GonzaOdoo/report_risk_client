@@ -1,0 +1,77 @@
+<odoo>
+
+    <record id="view_risk_report_form" model="ir.ui.view">
+        <field name="name">account.report.risk.client.form</field>
+        <field name="model">account.report.risk.client</field>
+        <field name="arch" type="xml">
+            <form string="Reporte de Riesgo de Clientes">
+                <sheet>
+                    <group>
+                        <field name="date"/>
+                        <field name="partner_ids" widget="many2many_tags"/>
+                    </group>
+                    <notebook>
+                        <page string="Resultados del Reporte">
+                            <field name="line_ids" nolabel="1">
+                                <tree editable="bottom">
+                                    <field name="partner_id"/>
+                                    
+        
+                                    <field name="pending_amount" optional="show" widget="monetary"
+                                           context="{'currency_field': 'currency_id'}"/>
+                                    <button name="action_view_pending_orders" type="object"
+                                            string="Ver Órdenes"
+                                            help="Haga clic para ver las órdenes de venta pendientes"
+                                            class="btn-primary"/>
+                                    
+        
+                                    <field name="balance" optional="show" widget="monetary"
+                                           context="{'currency_field': 'currency_id'}"/>
+                                    <button name="action_view_balance_moves" type="object"
+                                            string="Ver Movimientos"
+                                            help="Haga clic para ver los movimientos contables"
+                                            class="btn-primary"/>
+                                    <field name="subtotal" optional="show" widget="monetary"
+                                           context="{'currency_field': 'currency_id'}"/>
+        
+                                    
+        
+                                    <field name="cheques" optional="show" widget="monetary"
+                                           context="{'currency_field': 'currency_id'}"/>
+                                    <button name="action_view_cheques" type="object"
+                                            string="Ver Cheques"
+                                            help="Haga clic para ver los cheques no depositados"
+                                            class="btn-primary"/>
+                                    
+                                    <field name="saldo_cheques" optional="show" widget="monetary"
+                                           context="{'currency_field': 'currency_id'}"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer>
+                    <button name="create_report" string="Generar Reporte" type="object" class="btn-primary"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_risk_report_wizard" model="ir.actions.act_window">
+        <field name="name">Reporte de Riesgo de Clientes</field>
+        <field name="res_model">account.report.risk.client</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_account_report_risk_client"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+    <menuitem 
+        id="menu_risk_report_wizard"
+        name="Reporte de Riesgo de Clientes"
+        parent="account.account_reports_legal_statements_menu"
+        action="action_risk_report_wizard"
+        sequence="10"/>
+
+</odoo>
