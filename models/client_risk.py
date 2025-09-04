@@ -12,6 +12,7 @@ class RiskReport(models.TransientModel):
     def create_report(self):
         self.ensure_one()
         lines = []
+        excluded_product_tmpl_ids = [34534, 34535, 6, 34185, 34497, 38838, 34498, 34206]
         # Si no hay partners seleccionados, tomar todos los que tengan facturas o deudas
         partners = self.partner_ids
         if not partners:
@@ -23,18 +24,23 @@ class RiskReport(models.TransientModel):
         for partner in partners:
             # 1. Pendiente ($) = Valor de órdenes de venta pendientes (confirmadas, no facturadas completamente)
             pending_amount = 0.0
-            sale_orders = self.env['sale.order'].search([
-                ('partner_id', '=', partner.id),
-                ('state', 'in', ['sale', 'done']),  # Confirmadas
-                ('date_order', '<=', report_date),
-                ('invoice_status', '!=', 'invoiced'),  # No completamente facturadas
-            ])
-            for so in sale_orders:
-                # Tomar solo las líneas pendientes de facturación
-                for line in so.order_line:
-                    qty_to_invoice = line.product_uom_qty - line.qty_invoiced
-                    if qty_to_invoice > 0:
-                        pending_amount += line.price_unit * qty_to_invoice
+            
+            # Dominio para sale.order.line
+            line_domain = [
+                ('order_id.partner_id', '=', partner.id),
+                ('order_id.state', 'not in', ['draft', 'cancel', 'sent']),  # Pedido confirmado y no cotización
+                ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),  # Excluir productos
+                ('order_id.date_order', '<=', report_date),  # Fecha del pedido <= fecha del reporte
+            ]
+    
+            sale_order_lines = self.env['sale.order.line'].search(line_domain)
+    
+            for line in sale_order_lines:
+                # Considerar solo la parte no facturada (podría haber sido facturada parcialmente)
+                qty_to_invoice = line.qty_to_deliver  # Este campo ya considera lo facturado
+                if qty_to_invoice > 0:
+                    # Usar el precio unitario acordado
+                    pending_amount += line.price_unit * qty_to_invoice
 
             # 2. Saldo del cliente = Saldo contable en cuentas por cobrar (a la fecha)
             account_type = 'asset_receivable'
@@ -109,7 +115,11 @@ class RiskReportLine(models.TransientModel):
     sale_order_ids = fields.Many2many('sale.order', string='Órdenes pendientes', compute='_compute_sale_orders')
     move_line_ids = fields.Many2many('account.move.line', string='Movimientos de saldo', compute='_compute_move_lines')
     payment_ids = fields.Many2many('account.payment', string='Pagos (cheques)', compute='_compute_payments')
-
+    sale_order_line_ids = fields.Many2many(
+        'sale.order.line',
+        string='Líneas de pedido pendientes',
+        compute='_compute_sale_order_lines'
+    )
     def _compute_sale_orders(self):
         report_date = self.wizard_id.date
         for line in self:
@@ -123,7 +133,29 @@ class RiskReportLine(models.TransientModel):
             line.write({
                 'sale_order_ids': [(6, 0, sale_orders.ids)]
             })
+    def _compute_sale_order_lines(self):
+        report_date = self.wizard_id.date
+        excluded_product_tmpl_ids = [34534, 34535, 6, 34185, 34497, 38838, 34498, 34206]
+        for line in self:
+            if not report_date:
+                line.write({'sale_order_line_ids': [(5, 0, 0)]})  # limpia todos
+                continue
+    
+            # Dominio para líneas de pedido que contribuyen al "pendiente"
+            so_line_domain = [
+                ('order_id.partner_id', '=', line.partner_id.id),
+                ('order_id.state', 'not in', ['draft', 'cancel', 'sent']),  # Pedido confirmado
+                ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),
+                ('order_id.date_order', '<=', report_date),
+            ]
+            all_lines = self.env['sale.order.line'].search(so_line_domain)
 
+            # Filtrar en Python las que tienen qty_to_deliver > 0
+            so_lines = all_lines.filtered(lambda l: l.qty_to_deliver > 0)
+    
+            line.write({
+                'sale_order_line_ids': [(6, 0, so_lines.ids)]
+            })
     def _compute_move_lines(self):
         # Recalcular movimientos contables (saldo)
         report_date = self.wizard_id.date
@@ -148,6 +180,17 @@ class RiskReportLine(models.TransientModel):
             ]
             line.payment_ids = self.env['account.payment'].search(payment_domain)
 
+    def action_view_pending_lines(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Líneas pendientes - {self.partner_id.name}',
+            'res_model': 'sale.order.line',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', self.sale_order_line_ids.ids)],
+            'context': {'create': False, 'edit': False},
+            'target': 'current',
+        }
 
     def action_view_pending_orders(self):
         self.ensure_one()

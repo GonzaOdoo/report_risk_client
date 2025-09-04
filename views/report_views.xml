@@ -5,6 +5,9 @@
         <field name="model">account.report.risk.client</field>
         <field name="arch" type="xml">
             <form string="Reporte de Riesgo de Clientes">
+                <header>
+                    <button name="create_report" string="Generar Reporte" type="object" class="btn-primary"/>
+                </header>
                 <sheet>
                     <group>
                         <field name="date"/>
@@ -15,12 +18,11 @@
                             <field name="line_ids" nolabel="1">
                                 <tree editable="bottom">
                                     <field name="partner_id"/>
-                                    
         
                                     <field name="pending_amount" optional="show" widget="monetary"
                                            context="{'currency_field': 'currency_id'}"/>
-                                    <button name="action_view_pending_orders" type="object"
-                                            string="Ver Órdenes"
+                                    <button name="action_view_pending_lines" type="object"
+                                            string="Ver Líneas"
                                             help="Haga clic para ver las órdenes de venta pendientes"
                                             class="btn-primary"/>
                                     
@@ -62,7 +64,7 @@
         <field name="name">Reporte de Riesgo de Clientes</field>
         <field name="res_model">account.report.risk.client</field>
         <field name="view_mode">form</field>
-        <field name="target">new</field>
+        <field name="target">current</field>
         <field name="binding_model_id" ref="model_account_report_risk_client"/>
         <field name="binding_view_types">form</field>
     </record>
