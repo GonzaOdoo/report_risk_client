@@ -1,9 +1,15 @@
 from odoo import models, fields,api
 from collections import defaultdict
+import io
+import base64
+from datetime import datetime
+import xlsxwriter
+
 class RiskReport(models.TransientModel):
     _name = 'account.report.risk.client'
     _description = 'Reporte riesgo de clientes'
 
+    name = fields.Char("Nombre",default="Reporte de riesgo")
     date = fields.Date('Fecha')
     partner_ids = fields.Many2many('res.partner','Cliente')
     # Campos para almacenar los resultados del reporte
@@ -52,7 +58,7 @@ class RiskReport(models.TransientModel):
                 ('parent_state', '=', 'posted'),  # Solo asientos contables publicados
             ]
             mov_lines = self.env['account.move.line'].search(domain)
-            balance = sum(mov_lines.mapped('balance')) * -1  # En moneda de la compañía
+            balance = sum(mov_lines.mapped('balance')) # En moneda de la compañía
 
             # 3. Subtotal = Pendiente + Saldo
             subtotal = pending_amount + balance
@@ -62,7 +68,8 @@ class RiskReport(models.TransientModel):
             # y están en estado "draft" o "sent" (no depositados)
             cheque_payments = self.env['account.payment'].search([
                 ('partner_id', '=', partner.id),
-                ("state", "=", "posted"), 
+                ("state", "=", "posted"),
+                ('date', '<=', report_date),
                 ("l10n_latam_check_current_journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),  # Cheques no depositados
             ])
             cheques = sum(cheque_payments.mapped('amount'))
@@ -93,6 +100,129 @@ class RiskReport(models.TransientModel):
             'res_id': self.id,
             'target': 'current',
             'context': {'form_view_initial_mode': 'readonly'},
+        }
+
+
+    def generate_excel_report(self):
+        self.ensure_one()
+        # Crear archivo en memoria
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet('Riesgo de Clientes')
+    
+        # Formatos
+        header_format = workbook.add_format({
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'bg_color': '#2C3E50',
+            'font_color': 'white',
+            'border': 1,
+            'text_wrap': False
+        })
+    
+        text_format = workbook.add_format({'border': 1, 'align': 'left'})
+        amount_format = workbook.add_format({'num_format': '#,##0.00', 'border': 1})
+        date_format = workbook.add_format({'num_format': 'dd/mm/yyyy', 'border': 1})
+        title_format = workbook.add_format({
+        'bold': True,
+        'font_size': 14,
+        'align': 'left',
+        'valign': 'vcenter',
+        })
+        subtitle_format = workbook.add_format({
+            'align': 'left',
+            'valign': 'vcenter',
+            'font_size': 10,
+        })
+
+        current_row = 0
+        worksheet.write(current_row, 7, 'Reporte de Riesgo de Clientes', title_format)
+        current_row += 1  # Dejamos una fila de separación
+        if self.date:
+            date_str = self.date.strftime('%d/%m/%Y')
+            worksheet.write(current_row, 7, f'A fecha: {date_str}', subtitle_format)
+            current_row += 1
+
+        if self.partner_ids:
+            partner_names = ', '.join(self.partner_ids.mapped('name'))
+            # Dividir en líneas si es muy largo
+            max_chars = 80
+            if len(partner_names) > max_chars:
+                partner_names = partner_names[:max_chars] + '...'
+            worksheet.write(current_row, 7, f'Clientes seleccionados: {partner_names}', subtitle_format)
+            current_row += 2  # Dejar espacio antes de la tabla
+        else:
+            current_row += 1
+        # Cabeceras
+        headers = [
+            'Cliente',
+            'Pendiente ($)',
+            'Saldo del Cliente',
+            'Subtotal',
+            'Cheques en Cartera',
+            'Saldo + Cheques'
+        ]
+    
+        # Escribir cabeceras
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header, header_format)
+        current_row = 1
+        # Datos del reporte
+        row = current_row
+        for line in self.line_ids:
+            worksheet.write(row, 0, line.partner_id.name or '', text_format)
+            worksheet.write(row, 1, line.pending_amount, amount_format)
+            worksheet.write(row, 2, line.balance, amount_format)
+            worksheet.write(row, 3, line.subtotal, amount_format)
+            worksheet.write(row, 4, line.cheques, amount_format)
+            worksheet.write(row, 5, line.saldo_cheques, amount_format)
+            row += 1
+    
+        # Ajustar ancho de columnas
+        worksheet.set_column('A:A', 30)  # Cliente
+        worksheet.set_column('B:F', 18)  # Montos
+    
+        # Agregar totales al final
+        if row > 1:
+            total_pending = sum(self.line_ids.mapped('pending_amount'))
+            total_balance = sum(self.line_ids.mapped('balance'))
+            total_subtotal = sum(self.line_ids.mapped('subtotal'))
+            total_cheques = sum(self.line_ids.mapped('cheques'))
+            total_saldo_cheques = sum(self.line_ids.mapped('saldo_cheques'))
+    
+            worksheet.write(row, 0, 'TOTALES', header_format)
+            worksheet.write(row, 1, total_pending, amount_format)
+            worksheet.write(row, 2, total_balance, amount_format)
+            worksheet.write(row, 3, total_subtotal, amount_format)
+            worksheet.write(row, 4, total_cheques, amount_format)
+            worksheet.write(row, 5, total_saldo_cheques, amount_format)
+    
+        workbook.close()
+        output.seek(0)
+        file_data = base64.b64encode(output.read())
+        output.close()
+    
+        # Nombre del archivo con fecha
+        date_str = self.date.strftime('%Y%m%d') if self.date else 'sin_fecha'
+        filename = f"Reporte_Riesgo_Clientes_{date_str}.xlsx"
+    
+        # Crear adjunto
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': file_data,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'res_model': self._name,
+            'res_id': self.id,
+            'public': False,
+        })
+    
+        # Retornar acción de descarga
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
         }
 
 
@@ -175,7 +305,8 @@ class RiskReportLine(models.TransientModel):
         for line in self:
             payment_domain = [
                 ('partner_id', '=', line.partner_id.id),
-                ("state", "=", "posted"), 
+                ("state", "=", "posted"),
+                ('date', '<=', report_date),
                 ("l10n_latam_check_current_journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"])
             ]
             line.payment_ids = self.env['account.payment'].search(payment_domain)

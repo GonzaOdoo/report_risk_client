@@ -7,16 +7,21 @@
             <form string="Reporte de Riesgo de Clientes">
                 <header>
                     <button name="create_report" string="Generar Reporte" type="object" class="btn-primary"/>
+                    <button name="generate_excel_report" string="Exportar a Excel" type="object" class="btn-secondary"/>
                 </header>
                 <sheet>
                     <group>
-                        <field name="date"/>
-                        <field name="partner_ids" widget="many2many_tags"/>
+                        <group>
+                            <field name="date" string="A fecha"/>
+                        </group>
+                        <group>
+                            <field name="partner_ids" string="Clientes" widget="many2many_tags"/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="Resultados del Reporte">
-                            <field name="line_ids" nolabel="1">
-                                <tree editable="bottom">
+                            <field name="line_ids" nolabel="1" readonly="1">
+                                <tree>
                                     <field name="partner_id"/>
         
                                     <field name="pending_amount" optional="show" widget="monetary"
