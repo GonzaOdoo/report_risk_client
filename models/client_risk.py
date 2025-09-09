@@ -10,7 +10,7 @@ class RiskReport(models.TransientModel):
     _description = 'Reporte riesgo de clientes'
 
     name = fields.Char("Nombre",default="Reporte de riesgo")
-    date = fields.Date('Fecha')
+    date = fields.Date('Fecha', default=fields.Date.today)
     partner_ids = fields.Many2many('res.partner','Cliente')
     # Campos para almacenar los resultados del reporte
     line_ids = fields.One2many('account.report.risk.client.line', 'wizard_id', string='Líneas del reporte')
