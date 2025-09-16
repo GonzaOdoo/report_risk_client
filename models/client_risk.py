@@ -69,8 +69,8 @@ class RiskReport(models.TransientModel):
             cheque_payments = self.env['account.payment'].search([
                 ('partner_id', '=', partner.id),
                 ("state", "=", "posted"),
-                ('date', '<=', report_date),
-                ("l10n_latam_check_current_journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),  # Cheques no depositados
+                ('l10n_latam_check_payment_date', '>=', '2025-07-15'),
+                ("journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),  # Cheques no depositados
             ])
             cheques = sum(cheque_payments.mapped('amount'))
 
@@ -304,10 +304,10 @@ class RiskReportLine(models.TransientModel):
         report_date = self.wizard_id.date
         for line in self:
             payment_domain = [
-                ('partner_id', '=', line.partner_id.id),
+               ('partner_id', '=', line.partner_id.id),
                 ("state", "=", "posted"),
-                ('date', '<=', report_date),
-                ("l10n_latam_check_current_journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"])
+                ('l10n_latam_check_payment_date', '>=', '2025-07-15'),
+                ("journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),
             ]
             line.payment_ids = self.env['account.payment'].search(payment_domain)
 
