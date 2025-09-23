@@ -34,7 +34,6 @@ class RiskReport(models.TransientModel):
             # Dominio para sale.order.line
             line_domain = [
                 ('order_id.partner_id', '=', partner.id),
-                ('order_id.state', 'not in', ['draft', 'cancel', 'sent']),  # Pedido confirmado y no cotización
                 ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),  # Excluir productos
                 ('order_id.date_order', '<=', report_date),  # Fecha del pedido <= fecha del reporte
             ]
@@ -274,7 +273,6 @@ class RiskReportLine(models.TransientModel):
             # Dominio para líneas de pedido que contribuyen al "pendiente"
             so_line_domain = [
                 ('order_id.partner_id', '=', line.partner_id.id),
-                ('order_id.state', 'not in', ['draft', 'cancel', 'sent']),  # Pedido confirmado
                 ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),
                 ('order_id.date_order', '<=', report_date),
             ]
