@@ -45,7 +45,7 @@ class RiskReport(models.TransientModel):
                 qty_to_invoice = line.qty_to_deliver  # Este campo ya considera lo facturado
                 if qty_to_invoice > 0:
                     # Usar el precio unitario acordado
-                    pending_amount += line.price_unit * qty_to_invoice
+                    pending_amount += line.price_subtotal
 
             # 2. Saldo del cliente = Saldo contable en cuentas por cobrar (a la fecha)
             account_type = 'asset_receivable'
