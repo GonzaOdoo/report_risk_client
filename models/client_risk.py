@@ -77,14 +77,15 @@ class RiskReport(models.TransientModel):
             saldo_cheques = balance + cheques
 
             # Crear línea del reporte
-            lines.append((0, 0, {
-                'partner_id': partner.id,
-                'pending_amount': pending_amount,
-                'balance': balance,
-                'subtotal': subtotal,
-                'cheques': cheques,
-                'saldo_cheques': saldo_cheques,
-            }))
+            if pending_amount != 0 or balance != 0 or cheques != 0:
+                lines.append((0, 0, {
+                    'partner_id': partner.id,
+                    'pending_amount': pending_amount,
+                    'balance': balance,
+                    'subtotal': subtotal,
+                    'cheques': cheques,
+                    'saldo_cheques': saldo_cheques,
+                }))
 
         # Limpiar líneas anteriores
         self.line_ids.unlink()
