@@ -36,6 +36,7 @@ class RiskReport(models.TransientModel):
                 ('order_id.partner_id', '=', partner.id),
                 ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),  # Excluir productos
                 ('order_id.date_order', '<=', report_date),  # Fecha del pedido <= fecha del reporte
+                ('order_id.state', 'in', ['sale', 'done']),
             ]
     
             sale_order_lines = self.env['sale.order.line'].search(line_domain)
