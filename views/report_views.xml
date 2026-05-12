@@ -21,7 +21,7 @@
                     <notebook>
                         <page string="Resultados del Reporte">
                             <field name="line_ids" nolabel="1" readonly="1">
-                                <tree default_order="subtotal desc">
+                                <list default_order="subtotal desc">
                                     <field name="partner_id"/>
         
                                     <field name="pending_amount" optional="show" widget="monetary"
@@ -52,7 +52,7 @@
                                     
                                     <field name="saldo_cheques" optional="show" widget="monetary"
                                            context="{'currency_field': 'currency_id'}"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                     </notebook>
