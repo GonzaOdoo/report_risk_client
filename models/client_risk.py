@@ -66,11 +66,11 @@ class RiskReport(models.TransientModel):
             # 4. Cheques en cartera = Pagos con cheques no depositados aún
             # Suponemos que los cheques se registran como pagos con método de pago "Cheque"
             # y están en estado "draft" o "sent" (no depositados)
-            cheque_payments = self.env['account.payment'].search([
+            cheque_payments = self.env['l10n_latam.check'].search([
                 ('partner_id', '=', partner.id),
-                ("state", "=", "posted"),
-                #('l10n_latam_check_payment_date', '>=', report_date),
-                ("journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),  # Cheques no depositados
+                #("state", "!=", "voided"),
+                ('payment_date', '>=', report_date),
+                ("payment_method_code", "in", ["new_third_party_checks", "in_third_party_checks"]),  # Cheques no depositados
             ])
             cheques = sum(cheque_payments.mapped('amount'))
 
@@ -246,6 +246,7 @@ class RiskReportLine(models.TransientModel):
     sale_order_ids = fields.Many2many('sale.order', string='Órdenes pendientes', compute='_compute_sale_orders')
     move_line_ids = fields.Many2many('account.move.line', string='Movimientos de saldo', compute='_compute_move_lines')
     payment_ids = fields.Many2many('account.payment', string='Pagos (cheques)', compute='_compute_payments')
+    check_ids = fields.Many2many('l10n_latam.check', string='Cheques', compute='_compute_checks')
     sale_order_line_ids = fields.Many2many(
         'sale.order.line',
         string='Líneas de pedido pendientes',
@@ -307,9 +308,20 @@ class RiskReportLine(models.TransientModel):
                ('partner_id', '=', line.partner_id.id),
                 ("state", "=", "posted"),
                 #('l10n_latam_check_payment_date', '>=', report_date),
-                ("journal_id.inbound_payment_method_line_ids.payment_method_id.code", "in", ["new_third_party_checks", "in_third_party_checks"]),
+                ("payment_method_code", "in", ["new_third_party_checks", "in_third_party_checks"]),
             ]
             line.payment_ids = self.env['account.payment'].search(payment_domain)
+    def _compute_checks(self):
+        # Recalcular pagos (cheques no depositados)
+        report_date = self.wizard_id.date
+        for line in self:
+            check_domain = [
+               ('partner_id', '=', line.partner_id.id),
+                #("state", "=", "posted"),
+                ('payment_date', '>=', report_date),
+                ("payment_method_code", "in", ["new_third_party_checks", "in_third_party_checks"]),
+            ]
+            line.check_ids = self.env['l10n_latam.check'].search(check_domain)
 
     def action_view_pending_lines(self):
         self.ensure_one()
@@ -352,9 +364,9 @@ class RiskReportLine(models.TransientModel):
         return {
             'type': 'ir.actions.act_window',
             'name': f'Cheques no depositados - {self.partner_id.name}',
-            'res_model': 'account.payment',
+            'res_model': 'l10n_latam.check',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', self.payment_ids.ids)],
+            'domain': [('id', 'in', self.check_ids.ids)],
             'context': {'create': False, 'edit': False},
             'target': 'current',
         }
