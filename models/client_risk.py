@@ -44,9 +44,15 @@ class RiskReport(models.TransientModel):
             for line in sale_order_lines:
                 # Considerar solo la parte no facturada (podría haber sido facturada parcialmente)
                 qty_to_invoice = line.qty_to_deliver  # Este campo ya considera lo facturado
-                if qty_to_invoice > 0:
-                    # Usar el precio unitario acordado
+                if line.qty_to_deliver > 0:
+                    # Hoy sigue pendiente
                     pending_amount += line.price_subtotal
+                else:
+                    order = line.order_id
+                    effective_date = order.effective_date.date() if order.effective_date else False
+                    if not effective_date or effective_date > report_date:
+                        # A la fecha del reporte todavía no se había realizado la primera entrega
+                        pending_amount += line.price_subtotal
 
             # 2. Saldo del cliente = Saldo contable en cuentas por cobrar (a la fecha)
             account_type = 'asset_receivable'
@@ -268,25 +274,38 @@ class RiskReportLine(models.TransientModel):
     def _compute_sale_order_lines(self):
         report_date = self.wizard_id.date
         excluded_product_tmpl_ids = [34534, 34535, 6, 34185, 34497, 38838, 34498, 34206]
+    
         for line in self:
             if not report_date:
-                line.write({'sale_order_line_ids': [(5, 0, 0)]})  # limpia todos
+                line.sale_order_line_ids = [(5, 0, 0)]
                 continue
     
-            # Dominio para líneas de pedido que contribuyen al "pendiente"
             so_line_domain = [
                 ('order_id.partner_id', '=', line.partner_id.id),
                 ('product_id.product_tmpl_id', 'not in', excluded_product_tmpl_ids),
                 ('order_id.date_order', '<=', report_date),
+                ('order_id.state', 'in', ['sale', 'done']),
             ]
-            all_lines = self.env['sale.order.line'].search(so_line_domain)
-
-            # Filtrar en Python las que tienen qty_to_deliver > 0
-            so_lines = all_lines.filtered(lambda l: l.qty_to_deliver > 0)
     
-            line.write({
-                'sale_order_line_ids': [(6, 0, so_lines.ids)]
-            })
+            all_lines = self.env['sale.order.line'].search(so_line_domain)
+    
+            pending_lines = self.env['sale.order.line']
+    
+            for so_line in all_lines:
+                if so_line.qty_to_deliver > 0:
+                    pending_lines |= so_line
+                else:
+                    effective_date = (
+                        so_line.order_id.effective_date.date()
+                        if so_line.order_id.effective_date
+                        else False
+                    )
+    
+                    if not effective_date or effective_date > report_date:
+                        pending_lines |= so_line
+    
+            line.sale_order_line_ids = [(6, 0, pending_lines.ids)]
+            
     def _compute_move_lines(self):
         # Recalcular movimientos contables (saldo)
         report_date = self.wizard_id.date
