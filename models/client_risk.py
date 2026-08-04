@@ -50,7 +50,10 @@ class RiskReport(models.TransientModel):
                 else:
                     order = line.order_id
                     effective_date = order.effective_date.date() if order.effective_date else False
-                    if not effective_date or effective_date > report_date:
+                    if not effective_date:
+                        if line.qty_delivered != line.qty_invoiced:
+                            pending_amount += line.price_subtotal
+                    elif effective_date > report_date:
                         # A la fecha del reporte todavía no se había realizado la primera entrega
                         pending_amount += line.price_subtotal
 
@@ -300,8 +303,11 @@ class RiskReportLine(models.TransientModel):
                         if so_line.order_id.effective_date
                         else False
                     )
-    
-                    if not effective_date or effective_date > report_date:
+                    if not effective_date:
+                        if so_line.qty_delivered != so_line.qty_invoiced:
+                            pending_lines |= so_line
+                    elif effective_date > report_date:
+                        # A la fecha del reporte todavía no se había realizado la primera entrega
                         pending_lines |= so_line
     
             line.sale_order_line_ids = [(6, 0, pending_lines.ids)]
